@@ -1,0 +1,6 @@
+{
+  "name": "Coursework — AI Course Progress & Task Planner",
+  "description": "Track classes, study tasks, assignments, syllabus progress, and open-task reminder notifications across your AI course.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

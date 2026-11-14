@@ -1,0 +1,224 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Private user profile and reminder notification preferences.",
+      "type": "object",
+      "properties": {
+        "ownerId": {
+          "type": "string",
+          "description": "Authenticated user UID.",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "displayName": {
+          "type": "string",
+          "description": "User display name.",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "description": "User email address.",
+          "minLength": 3,
+          "maxLength": 200
+        },
+        "enableBrowserNotifications": {
+          "type": "boolean",
+          "description": "Whether desktop browser notifications are enabled."
+        },
+        "defaultLeadMinutes": {
+          "type": "integer",
+          "description": "Default minutes before deadline to surface reminders."
+        },
+        "soundEnabled": {
+          "type": "boolean",
+          "description": "Whether subtle audio reminder alerts are enabled."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when profile was created."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when profile was last updated."
+        }
+      },
+      "required": [
+        "ownerId",
+        "displayName",
+        "email",
+        "enableBrowserNotifications",
+        "defaultLeadMinutes",
+        "soundEnabled",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "CourseModule": {
+      "title": "CourseModule",
+      "description": "An AI course module or class section containing tasks and assignments.",
+      "type": "object",
+      "properties": {
+        "ownerId": {
+          "type": "string",
+          "description": "Owner user UID.",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "code": {
+          "type": "string",
+          "description": "Short class or module code (e.g., AI-101).",
+          "minLength": 1,
+          "maxLength": 24
+        },
+        "title": {
+          "type": "string",
+          "description": "Module or class title.",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "instructor": {
+          "type": "string",
+          "description": "Instructor or session cadence note.",
+          "maxLength": 100
+        },
+        "orderIndex": {
+          "type": "integer",
+          "description": "Display order index within the course syllabus."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when module was created."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when module was updated."
+        }
+      },
+      "required": [
+        "ownerId",
+        "code",
+        "title",
+        "instructor",
+        "orderIndex",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "CourseTask": {
+      "title": "CourseTask",
+      "description": "A class session, study task, or graded assignment within an AI course module.",
+      "type": "object",
+      "properties": {
+        "ownerId": {
+          "type": "string",
+          "description": "Owner user UID.",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "moduleId": {
+          "type": "string",
+          "description": "Parent CourseModule document ID.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "title": {
+          "type": "string",
+          "description": "Task, class, or assignment title.",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        "kind": {
+          "type": "string",
+          "enum": ["class", "task", "assignment"],
+          "description": "Item category within the AI course."
+        },
+        "status": {
+          "type": "string",
+          "enum": ["open", "in_progress", "completed"],
+          "description": "Current completion status."
+        },
+        "priority": {
+          "type": "string",
+          "enum": ["low", "medium", "high"],
+          "description": "Priority level."
+        },
+        "dueAt": {
+          "type": "string",
+          "description": "ISO datetime string for deadline or class start, or empty string.",
+          "maxLength": 40
+        },
+        "reminderAt": {
+          "type": "string",
+          "description": "ISO datetime string for scheduled reminder notification, or empty string.",
+          "maxLength": 40
+        },
+        "estimatedMinutes": {
+          "type": "integer",
+          "description": "Estimated minutes required."
+        },
+        "notes": {
+          "type": "string",
+          "description": "Syllabus notes, links, or rubric details.",
+          "maxLength": 2000
+        },
+        "reminderDismissed": {
+          "type": "boolean",
+          "description": "Whether the active reminder has been dismissed."
+        },
+        "completedAt": {
+          "type": "string",
+          "description": "ISO datetime string when item was completed, or empty string.",
+          "maxLength": 40
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when item was created."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when item was updated."
+        }
+      },
+      "required": [
+        "ownerId",
+        "moduleId",
+        "title",
+        "kind",
+        "status",
+        "priority",
+        "dueAt",
+        "reminderAt",
+        "estimatedMinutes",
+        "notes",
+        "reminderDismissed",
+        "completedAt",
+        "createdAt",
+        "updatedAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "Private user profile and reminder settings."
+    },
+    "/modules/{moduleId}": {
+      "schema": { "$ref": "#/entities/CourseModule" },
+      "description": "AI course modules and classes owned by a user."
+    },
+    "/tasks/{taskId}": {
+      "schema": { "$ref": "#/entities/CourseTask" },
+      "description": "AI course classes, tasks, and assignments owned by a user."
+    }
+  }
+}

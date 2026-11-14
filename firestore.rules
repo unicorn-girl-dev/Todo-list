@@ -1,0 +1,179 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global Safety Net: default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Reusable hardened primitives
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedUser() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    // Entity Validation Blueprints
+    function isValidUserProfile(data) {
+      return data.keys().hasAll([
+        'ownerId', 'displayName', 'email', 'enableBrowserNotifications',
+        'defaultLeadMinutes', 'soundEnabled', 'createdAt', 'updatedAt'
+      ]) &&
+      data.keys().hasOnly([
+        'ownerId', 'displayName', 'email', 'enableBrowserNotifications',
+        'defaultLeadMinutes', 'soundEnabled', 'createdAt', 'updatedAt'
+      ]) &&
+      data.ownerId is string && isValidId(data.ownerId) && data.ownerId == request.auth.uid &&
+      data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 100 &&
+      data.email is string && data.email.size() >= 3 && data.email.size() <= 200 &&
+      data.enableBrowserNotifications is bool &&
+      data.defaultLeadMinutes is int && data.defaultLeadMinutes >= 0 && data.defaultLeadMinutes <= 10080 &&
+      data.soundEnabled is bool &&
+      data.createdAt is timestamp &&
+      data.updatedAt is timestamp;
+    }
+
+    function isValidCourseModule(data) {
+      return data.keys().hasAll([
+        'ownerId', 'code', 'title', 'instructor', 'orderIndex', 'createdAt', 'updatedAt'
+      ]) &&
+      data.keys().hasOnly([
+        'ownerId', 'code', 'title', 'instructor', 'orderIndex', 'createdAt', 'updatedAt'
+      ]) &&
+      data.ownerId is string && isValidId(data.ownerId) && data.ownerId == request.auth.uid &&
+      data.code is string && data.code.size() >= 1 && data.code.size() <= 24 &&
+      data.title is string && data.title.size() >= 1 && data.title.size() <= 120 &&
+      data.instructor is string && data.instructor.size() <= 100 &&
+      data.orderIndex is int && data.orderIndex >= 0 && data.orderIndex <= 1000 &&
+      data.createdAt is timestamp &&
+      data.updatedAt is timestamp;
+    }
+
+    function isValidCourseTask(data) {
+      return data.keys().hasAll([
+        'ownerId', 'moduleId', 'title', 'kind', 'status', 'priority',
+        'dueAt', 'reminderAt', 'estimatedMinutes', 'notes',
+        'reminderDismissed', 'completedAt', 'createdAt', 'updatedAt'
+      ]) &&
+      data.keys().hasOnly([
+        'ownerId', 'moduleId', 'title', 'kind', 'status', 'priority',
+        'dueAt', 'reminderAt', 'estimatedMinutes', 'notes',
+        'reminderDismissed', 'completedAt', 'createdAt', 'updatedAt'
+      ]) &&
+      data.ownerId is string && isValidId(data.ownerId) && data.ownerId == request.auth.uid &&
+      data.moduleId is string && isValidId(data.moduleId) &&
+      data.title is string && data.title.size() >= 1 && data.title.size() <= 160 &&
+      data.kind in ['class', 'task', 'assignment'] &&
+      data.status in ['open', 'in_progress', 'completed'] &&
+      data.priority in ['low', 'medium', 'high'] &&
+      data.dueAt is string && data.dueAt.size() <= 40 &&
+      data.reminderAt is string && data.reminderAt.size() <= 40 &&
+      data.estimatedMinutes is int && data.estimatedMinutes >= 0 && data.estimatedMinutes <= 1440 &&
+      data.notes is string && data.notes.size() <= 2000 &&
+      data.reminderDismissed is bool &&
+      data.completedAt is string && data.completedAt.size() <= 40 &&
+      data.createdAt is timestamp &&
+      data.updatedAt is timestamp;
+    }
+
+    // Collection: users/{userId} (PII restricted strictly to owner)
+    match /users/{userId} {
+      allow get: if isValidId(userId) && isOwner(userId);
+      allow list: if false;
+      allow create: if isValidId(userId) &&
+        isVerifiedUser() &&
+        isOwner(userId) &&
+        isValidUserProfile(incoming()) &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time;
+      allow update: if isValidId(userId) &&
+        isVerifiedUser() &&
+        isOwner(userId) &&
+        isValidUserProfile(incoming()) &&
+        incoming().ownerId == existing().ownerId &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time &&
+        incoming().diff(existing()).affectedKeys().hasOnly([
+          'displayName', 'enableBrowserNotifications', 'defaultLeadMinutes', 'soundEnabled', 'updatedAt'
+        ]);
+      allow delete: if false;
+    }
+
+    // Collection: modules/{moduleId}
+    match /modules/{moduleId} {
+      allow get: if isValidId(moduleId) && isSignedIn() && existing().ownerId == request.auth.uid;
+      allow list: if isSignedIn() && resource.data.ownerId == request.auth.uid;
+      allow create: if isValidId(moduleId) &&
+        isVerifiedUser() &&
+        isValidCourseModule(incoming()) &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time;
+      allow update: if isValidId(moduleId) &&
+        isVerifiedUser() &&
+        isValidCourseModule(incoming()) &&
+        existing().ownerId == request.auth.uid &&
+        incoming().ownerId == existing().ownerId &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time &&
+        incoming().diff(existing()).affectedKeys().hasOnly([
+          'code', 'title', 'instructor', 'orderIndex', 'updatedAt'
+        ]);
+      allow delete: if isValidId(moduleId) && isVerifiedUser() && existing().ownerId == request.auth.uid;
+    }
+
+    // Collection: tasks/{taskId}
+    match /tasks/{taskId} {
+      allow get: if isValidId(taskId) && isSignedIn() && existing().ownerId == request.auth.uid;
+      allow list: if isSignedIn() && resource.data.ownerId == request.auth.uid;
+      allow create: if isValidId(taskId) &&
+        isVerifiedUser() &&
+        isValidCourseTask(incoming()) &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time &&
+        exists(/databases/$(database)/documents/modules/$(incoming().moduleId)) &&
+        get(/databases/$(database)/documents/modules/$(incoming().moduleId)).data.ownerId == request.auth.uid;
+      allow update: if isValidId(taskId) &&
+        isVerifiedUser() &&
+        isValidCourseTask(incoming()) &&
+        existing().ownerId == request.auth.uid &&
+        incoming().ownerId == existing().ownerId &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time &&
+        exists(/databases/$(database)/documents/modules/$(incoming().moduleId)) &&
+        get(/databases/$(database)/documents/modules/$(incoming().moduleId)).data.ownerId == request.auth.uid &&
+        (
+          incoming().diff(existing()).affectedKeys().hasOnly([
+            'status', 'completedAt', 'reminderDismissed', 'updatedAt'
+          ]) ||
+          incoming().diff(existing()).affectedKeys().hasOnly([
+            'reminderAt', 'reminderDismissed', 'updatedAt'
+          ]) ||
+          incoming().diff(existing()).affectedKeys().hasOnly([
+            'moduleId', 'title', 'kind', 'status', 'priority',
+            'dueAt', 'reminderAt', 'estimatedMinutes', 'notes',
+            'reminderDismissed', 'completedAt', 'updatedAt'
+          ])
+        );
+      allow delete: if isValidId(taskId) && isVerifiedUser() && existing().ownerId == request.auth.uid;
+    }
+  }
+}
